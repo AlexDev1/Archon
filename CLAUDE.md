@@ -1,5 +1,5 @@
 # CLAUDE.md
-
+# IMPORTANT: you must always answer in Russian!
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Alpha Development Guidelines
@@ -107,7 +107,7 @@ def process_batch(items):
 Archon V2 Alpha is a microservices-based knowledge management system with MCP (Model Context Protocol) integration:
 
 - **Frontend (port 3737)**: React + TypeScript + Vite + TailwindCSS
-- **Main Server (port 8181)**: FastAPI with HTTP polling for updates
+- **Main Server (port 8181)**: FastAPI + Socket.IO for real-time updates
 - **MCP Server (port 8051)**: Lightweight HTTP-based MCP protocol server
 - **Agents Service (port 8052)**: PydanticAI agents for AI/ML operations
 - **Database**: Supabase (PostgreSQL + pgvector for embeddings)
@@ -127,27 +127,45 @@ npm run test:coverage    # Run tests with coverage report
 ### Backend (python/)
 
 ```bash
-# Using uv package manager
-uv sync                  # Install/update dependencies
-uv run pytest            # Run tests
+# Using uv package manager (modern, fast Python package manager)
+uv sync                            # Install/update all dependencies
+uv sync --group dev                # Install dev dependencies only
+uv run pytest                     # Run all tests
+uv run pytest tests/test_api_essentials.py -v  # Run specific test file
+uv run pytest --cov=src --cov-report=html      # Run tests with coverage
+uv run ruff check                  # Lint code
+uv run mypy src/                   # Type checking
 uv run python -m src.server.main  # Run server locally
 
 # With Docker
 docker-compose up --build -d       # Start all services
-docker-compose logs -f             # View logs
-docker-compose restart              # Restart services
+docker-compose logs -f archon-server  # View specific service logs
+docker-compose restart archon-mcp     # Restart specific service
+docker-compose down && docker-compose up --build -d  # Full rebuild
 ```
 
-### Testing
+### Testing & Code Quality
 
 ```bash
 # Frontend tests (from archon-ui-main/)
+npm run test                       # Run all Vitest tests
+npm run test:coverage              # Run with coverage report
 npm run test:coverage:stream       # Run with streaming output
 npm run test:ui                    # Run with Vitest UI
+npm run lint                       # ESLint checking
 
 # Backend tests (from python/)
-uv run pytest tests/test_api_essentials.py -v
-uv run pytest tests/test_service_integration.py -v
+uv run pytest                     # Run all tests
+uv run pytest tests/test_api_essentials.py -v     # API core functionality
+uv run pytest tests/test_service_integration.py -v # Service integration
+uv run pytest tests/test_mcp_tools.py -v          # MCP tool functionality
+uv run pytest --cov=src --cov-report=html         # Coverage report
+uv run ruff check                  # Linting (replaces flake8, isort, etc.)
+uv run ruff format                 # Code formatting
+uv run mypy src/                   # Type checking
+
+# Service-specific testing
+docker-compose exec archon-server pytest tests/  # Test inside container
 ```
 
 ## Key API Endpoints
@@ -209,32 +227,41 @@ LOG_LEVEL=INFO                         # DEBUG, INFO, WARNING, ERROR
 
 ## File Organization
 
-### Frontend Structure
+### Frontend Architecture (archon-ui-main/)
 
-- `src/components/` - Reusable UI components
-- `src/pages/` - Main application pages
-- `src/services/` - API communication and business logic
-- `src/hooks/` - Custom React hooks
-- `src/contexts/` - React context providers
+- `src/components/` - Reusable UI components with Framer Motion animations
+- `src/pages/` - Main application pages with Socket.IO integration
+- `src/services/` - API communication and Socket.IO client setup
+- `src/hooks/` - Custom React hooks (useSocketSubscription, useOptimisticUpdates, etc.)
+- `src/contexts/` - React context providers (Settings, Theme, Toast contexts)
+- `src/types/` - TypeScript definitions for API responses and data models
 
-### Backend Structure
+### Backend Architecture (python/)
 
-- `src/server/` - Main FastAPI application
-- `src/server/api_routes/` - API route handlers
-- `src/server/services/` - Business logic services
-- `src/mcp/` - MCP server implementation
-- `src/agents/` - PydanticAI agent implementations
+- `src/server/` - Main FastAPI application with Socket.IO server
+- `src/server/api_routes/` - API route handlers organized by feature
+- `src/server/services/` - Business logic services (crawling, knowledge, projects)
+- `src/mcp/` - HTTP-based MCP server implementation (14+ tools)
+- `src/agents/` - PydanticAI agent implementations for AI/ML operations
+- `src/database/` - Database models, migrations, and utility functions
+- `src/shared/` - Shared utilities and configurations across services
 
 ## Database Schema
 
-Key tables in Supabase:
+Key tables in Supabase with pgvector and RLS policies:
 
-- `sources` - Crawled websites and uploaded documents
-- `documents` - Processed document chunks with embeddings
-- `projects` - Project management (optional feature)
-- `tasks` - Task tracking linked to projects
-- `code_examples` - Extracted code snippets
+- `sources` - Crawled websites and uploaded documents with metadata
+- `documents` - Processed document chunks with pgvector embeddings for RAG
+- `code_examples` - Extracted code snippets with contextual embeddings
+- `projects` - Project management (optional feature controlled by archon_settings)
+- `tasks` - Task tracking linked to projects with status management
+- `archon_settings` - Runtime configuration (feature toggles, API keys, etc.)
 
+### Key Database Patterns
+- **pgvector Integration**: Hybrid search combining full-text and vector similarity
+- **Row Level Security (RLS)**: Multi-tenant security policies
+- **Contextual Embeddings**: Enhanced embeddings with document context for improved RAG
+- **Configuration Storage**: Database-driven settings with encryption for sensitive data
 ## API Naming Conventions
 
 ### Task Status Values
@@ -255,36 +282,55 @@ Use database values directly (no UI mapping):
 
 ## Common Development Tasks
 
-### Add a new API endpoint
+## Service Communication Patterns
 
-1. Create route handler in `python/src/server/api_routes/`
-2. Add service logic in `python/src/server/services/`
-3. Include router in `python/src/server/main.py`
-4. Update frontend service in `archon-ui-main/src/services/`
+### HTTP-Based Architecture
+- **No Shared Dependencies**: Each service maintains independent codebases
+- **Service URLs**: Environment-based service discovery via Docker Compose networking
+- **Health Checks**: All services expose `/health` endpoints for monitoring
+- **Error Propagation**: HTTP status codes and structured error responses across services
 
-### Add a new UI component
+### MCP Integration Details
+- **HTTP Protocol**: Uses HTTP transport instead of stdio for MCP communication
+- **Tool Categories**: Knowledge management, project management, code search, task management
+- **Service Delegation**: MCP server delegates tool execution to appropriate backend services
+- **Real-time Updates**: MCP operations trigger Socket.IO events for UI updates
 
-1. Create component in `archon-ui-main/src/components/`
-2. Add to page in `archon-ui-main/src/pages/`
-3. Include any new API calls in services
-4. Add tests in `archon-ui-main/test/`
+## Development Workflow Patterns
 
-### Debug MCP connection issues
+### Container Development Strategy
+- **Volume Mounts**: Source code mounted for hot reload in development
+- **Service Isolation**: Each service runs in dedicated container with health monitoring
+- **Network Communication**: All inter-service communication via Docker bridge network
+- **Independent Scaling**: Services can be restarted or scaled independently
 
-1. Check MCP health: `curl http://localhost:8051/health`
-2. View MCP logs: `docker-compose logs archon-mcp`
-3. Test tool execution via UI MCP page
-4. Verify Supabase connection and credentials
+### Configuration Management
+- **Environment Variables**: Docker Compose `.env` file for deployment settings
+- **Database Settings**: Runtime configuration stored in `archon_settings` table
+- **Feature Toggles**: Projects/tasks features controlled via database flags
+- **Credential Management**: Encrypted storage for API keys and sensitive data
 
 ## Code Quality Standards
 
-We enforce code quality through automated linting and type checking:
+Automated code quality enforcement across all services:
 
+### Python Backend
 - **Python 3.12** with 120 character line length
-- **Ruff** for linting - checks for errors, warnings, unused imports, and code style
-- **Mypy** for type checking - ensures type safety across the codebase
-- **Auto-formatting** on save in IDEs to maintain consistent style
-- Run `uv run ruff check` and `uv run mypy src/` locally before committing
+- **Ruff** for linting (replaces flake8, isort, black) - comprehensive code analysis
+- **Mypy** for static type checking with strict configuration
+- **uv Package Manager** for fast, reliable dependency management
+- **Async Patterns** - extensive use of asyncio for I/O operations
+
+### TypeScript Frontend  
+- **TypeScript 5+** with strict configuration
+- **ESLint** with custom rules for React and accessibility
+- **Vitest** for testing with coverage requirements
+- **TailwindCSS** for consistent styling patterns
+
+### Quality Gates
+- Run `uv run ruff check && uv run mypy src/` before committing Python code
+- Run `npm run lint && npm run test` before committing frontend code
+- Docker builds include linting and type checking steps
 
 ## MCP Tools Available
 
