@@ -20,7 +20,7 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
   const externalHost = process.env.HOST || 'localhost';  // Host for external access
   const host = isDocker ? internalHost : externalHost;
   const port = process.env.ARCHON_SERVER_PORT || env.ARCHON_SERVER_PORT || '8181';
-  
+  console.log(`SETTINGS:\nENV: ${process.env.HOST},IS DOCKER: ${isDocker},  [VITE] Host: ${host}, Port: ${port}`);
   return {
     plugins: [
       react(),
