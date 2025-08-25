@@ -15,6 +15,14 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Set production environment variables for build
+ARG VITE_API_URL
+ARG HOST
+ARG PROD=true
+ENV VITE_API_URL=${VITE_API_URL}
+ENV HOST=${HOST}
+ENV PROD=${PROD}
+
 # Build the application for production
 RUN npm run build
 
