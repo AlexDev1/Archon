@@ -84,12 +84,13 @@ async function apiRequest<T>(
   console.log(`🔍 [KnowledgeBase] Request method: ${options.method || 'GET'}`);
   console.log(`🔍 [KnowledgeBase] API_BASE_URL: "${API_BASE_URL}"`);
   
-  // Create an AbortController for timeout
+  // Create an AbortController for timeout - increased for long-running operations
   const controller = new AbortController();
+  const timeoutDuration = endpoint.includes('/refresh') || endpoint.includes('/crawl') ? 300000 : 30000; // 5 minutes for crawl/refresh, 30s for others
   const timeoutId = setTimeout(() => {
-    console.error(`⏰ [KnowledgeBase] Request timeout after 10 seconds for: ${url}`);
+    console.error(`⏰ [KnowledgeBase] Request timeout after ${timeoutDuration/1000} seconds for: ${url}`);
     controller.abort();
-  }, 10000); // 10 second timeout
+  }, timeoutDuration);
   
   try {
     console.log(`🚀 [KnowledgeBase] Sending fetch request...`);
