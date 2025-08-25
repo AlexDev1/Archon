@@ -44,6 +44,11 @@ services:
       - PYTHONUNBUFFERED=1
       - PYTHONOPTIMIZE=1
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # MCP Server - Lightweight HTTP-based service
   archon-mcp:
@@ -71,6 +76,11 @@ services:
       - PYTHONUNBUFFERED=1
       - PYTHONOPTIMIZE=1
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # AI Agents Service - ML/Reranking (most memory intensive)
   archon-agents:
@@ -120,6 +130,11 @@ services:
     environment:
       - PROD=true
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     # Production health check
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3737"]
@@ -128,20 +143,4 @@ services:
       retries: 3
       start_period: 30s
 
-# Global production settings
-x-logging: &default-logging
-  driver: "json-file"
-  options:
-    max-size: "10m"
-    max-file: "3"
-
-# Apply logging configuration to all services
-services:
-  archon-server:
-    logging: *default-logging
-  archon-mcp:
-    logging: *default-logging
-  archon-agents:
-    logging: *default-logging
-  archon-frontend:
-    logging: *default-logging
+# Logging configuration is applied inline to each service above
