@@ -1,0 +1,147 @@
+# Production configuration with memory constraints
+# This file automatically overrides docker-compose.yml for production deployment
+# Use: docker compose up --build -d (override file is loaded automatically)
+
+services:
+  # Backend Server - Main API and Socket.IO
+  archon-server:
+    # Production build without hot reload
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "src.server.main:socket_app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "${ARCHON_SERVER_PORT:-8181}",
+        # Remove --reload for production
+      ]
+    # Remove development volumes
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # Keep only essential Docker socket mount
+    # Memory limits for 8GB server (allocate 2GB)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    # Production environment variables
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LOGFIRE_TOKEN=${LOGFIRE_TOKEN:-}
+      - SERVICE_DISCOVERY_MODE=docker_compose
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ARCHON_SERVER_PORT=${ARCHON_SERVER_PORT:-8181}
+      - ARCHON_MCP_PORT=${ARCHON_MCP_PORT:-8051}
+      - ARCHON_AGENTS_PORT=${ARCHON_AGENTS_PORT:-8052}
+      # Production optimizations
+      - PROD=true
+      - PYTHONUNBUFFERED=1
+      - PYTHONOPTIMIZE=1
+    restart: unless-stopped
+
+  # MCP Server - Lightweight HTTP-based service
+  archon-mcp:
+    # Memory limits (allocate 1GB - lightweight service)
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - LOGFIRE_TOKEN=${LOGFIRE_TOKEN:-}
+      - SERVICE_DISCOVERY_MODE=docker_compose
+      - TRANSPORT=sse
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - API_SERVICE_URL=http://archon-server:${ARCHON_SERVER_PORT:-8181}
+      - AGENTS_SERVICE_URL=http://archon-agents:${ARCHON_AGENTS_PORT:-8052}
+      - ARCHON_MCP_PORT=${ARCHON_MCP_PORT:-8051}
+      - ARCHON_SERVER_PORT=${ARCHON_SERVER_PORT:-8181}
+      - ARCHON_AGENTS_PORT=${ARCHON_AGENTS_PORT:-8052}
+      # Production optimizations
+      - PROD=true
+      - PYTHONUNBUFFERED=1
+      - PYTHONOPTIMIZE=1
+    restart: unless-stopped
+
+  # AI Agents Service - ML/Reranking (most memory intensive)
+  archon-agents:
+    # Memory limits (allocate 3GB - ML operations need more memory)
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+        reservations:
+          memory: 1.5G
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LOGFIRE_TOKEN=${LOGFIRE_TOKEN:-}
+      - SERVICE_DISCOVERY_MODE=docker_compose
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ARCHON_AGENTS_PORT=${ARCHON_AGENTS_PORT:-8052}
+      - ARCHON_SERVER_PORT=${ARCHON_SERVER_PORT:-8181}
+      # Production optimizations
+      - PROD=true
+      - PYTHONUNBUFFERED=1
+      - PYTHONOPTIMIZE=1
+      # ML model optimizations
+      - TRANSFORMERS_CACHE=/tmp/transformers_cache
+      - HF_HOME=/tmp/huggingface_cache
+    restart: unless-stopped
+
+  # Frontend - Production build with nginx
+  archon-frontend:
+    build:
+      context: ./archon-ui-main
+      dockerfile: Dockerfile.prod
+      args:
+        - VITE_API_URL=https://${HOST:-localhost}
+        - HOST=${HOST:-localhost}
+        - PROD=true
+    # Remove development volumes
+    volumes: []
+    # Memory limits (allocate 1GB - nginx + static files)
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+    environment:
+      - PROD=true
+    restart: unless-stopped
+    # Production health check
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3737"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+# Global production settings
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Apply logging configuration to all services
+services:
+  archon-server:
+    logging: *default-logging
+  archon-mcp:
+    logging: *default-logging
+  archon-agents:
+    logging: *default-logging
+  archon-frontend:
+    logging: *default-logging
