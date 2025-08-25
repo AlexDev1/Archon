@@ -766,13 +766,8 @@ async def add_code_examples_to_supabase(
     if not urls:
         return
 
-    # Delete existing records for these URLs
-    unique_urls = list(set(urls))
-    for url in unique_urls:
-        try:
-            client.table("archon_code_examples").delete().eq("url", url).execute()
-        except Exception as e:
-            search_logger.error(f"Error deleting existing code examples for {url}: {e}")
+    # Note: Using upsert below instead of deleting, which handles duplicates automatically
+    search_logger.debug(f"Processing {len(set(urls))} unique URLs for code examples")
 
     # Check if contextual embeddings are enabled
     try:
@@ -909,13 +904,17 @@ async def add_code_examples_to_supabase(
 
         for retry in range(max_retries):
             try:
-                client.table("archon_code_examples").insert(batch_data).execute()
+                # Use upsert to handle duplicates
+                client.table("archon_code_examples").upsert(
+                    batch_data,
+                    on_conflict="url,chunk_number"
+                ).execute()
                 # Success - break out of retry loop
                 break
             except Exception as e:
                 if retry < max_retries - 1:
                     search_logger.warning(
-                        f"Error inserting batch into Supabase (attempt {retry + 1}/{max_retries}): {e}"
+                        f"Error upserting batch into Supabase (attempt {retry + 1}/{max_retries}): {e}"
                     )
                     search_logger.info(f"Retrying in {retry_delay} seconds...")
                     import time
@@ -924,22 +923,25 @@ async def add_code_examples_to_supabase(
                     retry_delay *= 2  # Exponential backoff
                 else:
                     # Final attempt failed
-                    search_logger.error(f"Failed to insert batch after {max_retries} attempts: {e}")
+                    search_logger.error(f"Failed to upsert batch after {max_retries} attempts: {e}")
                     # Optionally, try inserting records one by one as a last resort
-                    search_logger.info("Attempting to insert records individually...")
+                    search_logger.info("Attempting to upsert records individually...")
                     successful_inserts = 0
                     for record in batch_data:
                         try:
-                            client.table("archon_code_examples").insert(record).execute()
+                            client.table("archon_code_examples").upsert(
+                                record,
+                                on_conflict="url,chunk_number"
+                            ).execute()
                             successful_inserts += 1
                         except Exception as individual_error:
                             search_logger.error(
-                                f"Failed to insert individual record for URL {record['url']}: {individual_error}"
+                                f"Failed to upsert individual record for URL {record['url']}: {individual_error}"
                             )
 
                     if successful_inserts > 0:
                         search_logger.info(
-                            f"Successfully inserted {successful_inserts}/{len(batch_data)} records individually"
+                            f"Successfully upserted {successful_inserts}/{len(batch_data)} records individually"
                         )
 
         search_logger.info(
