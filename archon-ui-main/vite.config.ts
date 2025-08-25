@@ -313,6 +313,20 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
       'import.meta.env.VITE_PORT': JSON.stringify(port),
       'import.meta.env.PROD': env.PROD === 'true',
     },
+    build: {
+      outDir: 'dist',
+      assetsDir: 'assets',
+      sourcemap: env.PROD !== 'true',
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom'],
+            router: ['react-router-dom'],
+            ui: ['framer-motion', 'lucide-react'],
+          }
+        }
+      }
+    },
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
