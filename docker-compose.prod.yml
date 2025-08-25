@@ -1,0 +1,12 @@
+# Docker Compose configuration for production deployment
+# Use: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+
+services:
+  # Frontend - Production override with nginx
+  archon-frontend:
+    build:
+      context: ./archon-ui-main
+      dockerfile: Dockerfile.prod
+    volumes: []  # Remove dev volumes in production
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3737"]
