@@ -17,9 +17,13 @@ COPY . .
 
 # Set production environment variables for build
 ARG VITE_API_URL
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
 ARG HOST
 ARG PROD=true
 ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+ENV VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
 ENV HOST=${HOST}
 ENV PROD=${PROD}
 
@@ -32,7 +36,7 @@ FROM nginx:alpine
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Create nginx configuration
+# Create nginx configuration with API proxy
 RUN echo 'server { \
     listen 3737; \
     server_name _; \
@@ -42,6 +46,36 @@ RUN echo 'server { \
     # Handle client-side routing \
     location / { \
         try_files $uri $uri/ /index.html; \
+    } \
+    \
+    # Proxy API requests to backend \
+    location /api { \
+        proxy_pass http://archon-server:8181/api; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
+    } \
+    \
+    # WebSocket support for Socket.IO \
+    location /socket.io { \
+        proxy_pass http://archon-server:8181/socket.io; \
+        proxy_http_version 1.1; \
+        proxy_set_header Upgrade $http_upgrade; \
+        proxy_set_header Connection "upgrade"; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
+    } \
+    \
+    # Health check endpoint proxy \
+    location /health { \
+        proxy_pass http://archon-server:8181/health; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
     } \
     \
     # Cache static assets \

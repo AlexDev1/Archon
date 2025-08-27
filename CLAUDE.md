@@ -1,5 +1,6 @@
 # CLAUDE.md
 # IMPORTANT: you must always answer in Russian!
+# USED mcp playwright for check frontend  
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 # CRITICAL: ARCHON-FIRST RULE - READ THIS FIRST
   BEFORE doing ANYTHING else, when you see ANY task management scenario:

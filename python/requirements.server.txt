@@ -34,7 +34,7 @@ slowapi>=0.1.9
 
 # Core utilities
 httpx>=0.24.0
-pydantic>=2.0.0
+pydantic[email]>=2.0.0  # Added email validation support for auth system
 python-dotenv>=1.0.0
 docker>=6.1.0  # For MCP container control
 

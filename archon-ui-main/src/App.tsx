@@ -8,7 +8,12 @@ import { MainLayout } from './components/layouts/MainLayout';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
+import { AuthProvider } from './contexts/AuthContext';
 import { ProjectPage } from './pages/ProjectPage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import ProfilePage from './pages/ProfilePage';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 import { DisconnectScreenOverlay } from './components/DisconnectScreenOverlay';
 import { ErrorBoundaryWithBugReport } from './components/bug-report/ErrorBoundaryWithBugReport';
 import { serverHealthService } from './services/serverHealthService';
@@ -18,12 +23,42 @@ const AppRoutes = () => {
   
   return (
     <Routes>
-      <Route path="/" element={<KnowledgeBasePage />} />
-      <Route path="/onboarding" element={<OnboardingPage />} />
-      <Route path="/settings" element={<SettingsPage />} />
-      <Route path="/mcp" element={<MCPPage />} />
+      {/* Public routes */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      
+      {/* Protected routes */}
+      <Route path="/" element={
+        <ProtectedRoute>
+          <KnowledgeBasePage />
+        </ProtectedRoute>
+      } />
+      <Route path="/onboarding" element={
+        <ProtectedRoute>
+          <OnboardingPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/profile" element={
+        <ProtectedRoute>
+          <ProfilePage />
+        </ProtectedRoute>
+      } />
+      <Route path="/settings" element={
+        <ProtectedRoute requiredRole="admin">
+          <SettingsPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/mcp" element={
+        <ProtectedRoute>
+          <MCPPage />
+        </ProtectedRoute>
+      } />
       {projectsEnabled ? (
-        <Route path="/projects" element={<ProjectPage />} />
+        <Route path="/projects" element={
+          <ProtectedRoute>
+            <ProjectPage />
+          </ProtectedRoute>
+        } />
       ) : (
         <Route path="/projects" element={<Navigate to="/" replace />} />
       )}
@@ -93,9 +128,11 @@ export function App() {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <SettingsProvider>
-          <AppContent />
-        </SettingsProvider>
+        <AuthProvider>
+          <SettingsProvider>
+            <AppContent />
+          </SettingsProvider>
+        </AuthProvider>
       </ToastProvider>
     </ThemeProvider>
   );
