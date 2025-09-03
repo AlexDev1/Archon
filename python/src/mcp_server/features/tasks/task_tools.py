@@ -32,9 +32,9 @@ def register_task_tools(mcp: FastMCP):
         description: str = "",
         assignee: str = "User",
         task_order: int = 0,
-        feature: Optional[str] = None,
-        sources: Optional[List[Dict[str, str]]] = None,
-        code_examples: Optional[List[Dict[str, str]]] = None,
+        feature: str | None = None,
+        sources: list[dict[str, str]] | None = None,
+        code_examples: list[dict[str, str]] | None = None,
     ) -> str:
         """
         Create a new task in a project.
